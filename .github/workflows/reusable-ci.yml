@@ -1,0 +1,101 @@
+name: Reusable CI
+
+on:
+  workflow_call:
+    inputs:
+      status:
+        description: "Project status from .lo/PROJECT.md (explore | build | open | closed)"
+        type: string
+        required: true
+      has-lint:
+        description: "Repo has a lint script"
+        type: boolean
+        default: false
+      has-test:
+        description: "Repo has a test script"
+        type: boolean
+        default: false
+      has-build:
+        description: "Repo has a build script"
+        type: boolean
+        default: false
+      supabase-url:
+        description: "Supabase project URL (publishable, safe to commit)"
+        type: string
+        default: ""
+      supabase-key:
+        description: "Supabase publishable key (safe to commit)"
+        type: string
+        default: ""
+
+jobs:
+  gate:
+    name: Gate
+    runs-on: ubuntu-latest
+    outputs:
+      run-checks: ${{ steps.check.outputs.run-checks }}
+    steps:
+      - id: check
+        env:
+          PROJECT_STATUS: ${{ inputs.status }}
+        run: |
+          if [[ "$PROJECT_STATUS" == "build" || "$PROJECT_STATUS" == "open" ]]; then
+            echo "run-checks=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::CI is off — project status is '$PROJECT_STATUS'. Change to build or open to enable checks."
+            echo "run-checks=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  lint:
+    name: Lint
+    needs: gate
+    if: needs.gate.outputs.run-checks == 'true' && inputs.has-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+      - run: bun install
+      - run: bun run lint
+
+  test:
+    name: Unit Tests
+    needs: gate
+    if: needs.gate.outputs.run-checks == 'true' && inputs.has-test
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ inputs.supabase-url }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ inputs.supabase-key }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+      - run: bun install
+      - run: bun run test
+
+  build:
+    name: Build
+    needs: gate
+    if: needs.gate.outputs.run-checks == 'true' && inputs.has-build
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ inputs.supabase-url }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ inputs.supabase-key }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+      - run: bun install
+      - run: bun run build

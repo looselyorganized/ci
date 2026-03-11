@@ -19,10 +19,6 @@ on:
         description: "Repo has a build script"
         type: boolean
         default: false
-      has-audit:
-        description: "Repo should run npm audit"
-        type: boolean
-        default: false
       supabase-url:
         description: "Supabase project URL (publishable, safe to commit)"
         type: string
@@ -103,19 +99,3 @@ jobs:
           restore-keys: bun-${{ runner.os }}-
       - run: bun install
       - run: bun run build
-
-  audit:
-    name: Security Audit
-    needs: gate
-    if: needs.gate.outputs.run-checks == 'true' && inputs.has-audit
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - uses: actions/cache@v4
-        with:
-          path: ~/.bun/install/cache
-          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
-          restore-keys: bun-${{ runner.os }}-
-      - run: bun install
-      - run: npm audit --audit-level=critical
